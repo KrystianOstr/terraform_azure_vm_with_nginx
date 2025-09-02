@@ -46,3 +46,29 @@ jobs:
 
     - name: get tf outputs
       run: terraform -chdir=infra output
+
+  ansible:
+    needs: terraform
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: setup ssh key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+
+    - name: install ansible
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y ansible
+
+    - name: run playbook
+      run: |
+        ansible-playbook -i "${{ needs.terraform.outputs.public_ip }}," \
+        config/ansible/site.yaml \
+        -u azureuser \
+        --private-key ~/.ssh/id_ed25519 \
+        -e "ansible_ssh_common_args='-o StrictHostKeyChecking=no'"

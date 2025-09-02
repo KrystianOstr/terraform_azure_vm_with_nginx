@@ -1,0 +1,16 @@
+- hosts: all
+  become: true
+  tasks:
+  - name: install nginx
+    apt:
+      name: nginx
+      state: present
+      update_cache: yes
+
+  - name: deploy index.html
+    ansible.builtin.copy:
+      src: files/index.html
+      dest: /var/www/html/index.html
+      owner: root
+      group: root
+      mode: "0644"
