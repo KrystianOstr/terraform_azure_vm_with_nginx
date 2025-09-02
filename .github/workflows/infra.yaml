@@ -13,6 +13,9 @@ jobs:
   terraform:
     runs-on: ubuntu-latest
 
+    outputs:
+      public_ip: ${{ steps.tf_output.outputs.public_ip }}
+
     env:
       TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       TF_VAR_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
@@ -44,8 +47,11 @@ jobs:
     - name: terraform apply
       run: terraform -chdir=infra apply -auto-approve
 
-    - name: get tf outputs
-      run: terraform -chdir=infra output
+    - name: export public ip
+      id: tf_output
+      run: |
+        ip=$(terraform -chdir=infra output -raw public_ip)
+        echo "public_ip=$ip" >> $GITHUB_OUTPUT
 
   ansible:
     needs: terraform
