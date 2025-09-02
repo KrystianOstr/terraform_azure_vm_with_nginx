@@ -1,0 +1,1 @@
+# terraform_azure_vm_with_nginx
