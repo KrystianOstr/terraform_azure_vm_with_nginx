@@ -26,6 +26,13 @@ jobs:
     - name: setup terraform
       uses: hashicorp/setup-terraform@v3
 
+    - name: Extract public key
+      run: |
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > id_rsa
+        chmod 600 id_rsa
+        ssh-keygen -y -f id_rsa > id_rsa.pub
+        echo "TF_VAR_ssh_pub_key=$(cat id_rsa.pub)" >> $GITHUB_ENV
+
     - name: terraform init
       run: terraform -chdir=infra init
 
