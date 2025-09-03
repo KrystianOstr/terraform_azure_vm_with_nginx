@@ -72,6 +72,18 @@ The public key is derived from SSH_PRIVATE_KEY inside the workflow and passed to
         └── infra.yml    # Terraform + Ansible pipeline
 ```
 
+### Workflows
+
+- On push to main → runs terraform plan
+
+- On workflow_dispatch (manual trigger) → runs full pipeline:
+
+  - terraform apply (infra creation),
+
+  - ansible-playbook (Nginx setup + static page).
+
+- Separate destroy workflow → on workflow_dispatch with confirmation, runs terraform destroy to remove all resources and stop Azure charges.
+
 ### How to Run
 
 1. Fork the repository.
@@ -86,5 +98,6 @@ Update infra/backend.tf with your own values (resource_group_name, storage_accou
 5. Once the pipeline finishes, check the Terraform job logs for public_ip.
 
 6. Open in your browser:
-
 `http://<PUBLIC_IP>`
+
+7. To clean up: run the Destroy infra workflow and type **DESTROY** when asked.
