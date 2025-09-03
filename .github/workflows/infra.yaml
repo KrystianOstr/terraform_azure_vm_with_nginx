@@ -3,7 +3,10 @@ name: Infra with Terraform + Ansible
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
+    paths:
+      - "infra/**"
+      - "config/**"
 
 permissions:
   id-token: write
@@ -22,59 +25,66 @@ jobs:
       TF_VAR_client_id: ${{ secrets.AZURE_CLIENT_ID }}
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: azure login
-      uses: azure/login@v2
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-    - name: setup terraform
-      uses: hashicorp/setup-terraform@v3
+      - name: setup terraform
+        uses: hashicorp/setup-terraform@v3
 
-    - name: extract public key
-      run: |
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > id_rsa
-        chmod 600 id_rsa
-        ssh-keygen -y -f id_rsa > id_rsa.pub
-        echo "TF_VAR_ssh_pub_key=$(cat id_rsa.pub)" >> $GITHUB_ENV
+      - name: extract public key
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > id_rsa
+          chmod 600 id_rsa
+          ssh-keygen -y -f id_rsa > id_rsa.pub
+          echo "TF_VAR_ssh_pub_key=$(cat id_rsa.pub)" >> $GITHUB_ENV
 
-    - name: terraform init
-      run: terraform -chdir=infra init
+      - name: terraform init
+        run: terraform -chdir=infra init
 
-    - name: terraform apply
-      run: terraform -chdir=infra apply -auto-approve
+      - name: terraform plan
+        run: terraform -chdir=infra plan -input=false
 
-    - name: export public ip
-      id: tf_output
-      run: |
-        ip=$(terraform -chdir=infra output -raw public_ip)
-        echo "public_ip=$ip" >> $GITHUB_OUTPUT
+      - name: terraform apply
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: terraform -chdir=infra apply -auto-approve
+
+      - name: export public ip
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        id: tf_output
+        run: |
+          ip=$(terraform -chdir=infra output -raw public_ip)
+          echo "public_ip=$ip" >> $GITHUB_OUTPUT
 
   ansible:
     needs: terraform
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: setup ssh key
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-        chmod 600 ~/.ssh/id_ed25519
+      - name: setup ssh key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
 
-    - name: install ansible
-      run: |
-        sudo apt-get update -y
-        sudo apt-get install -y ansible
+      - name: install ansible
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ansible
 
-    - name: run playbook
-      run: |
-        ansible-playbook -i "${{ needs.terraform.outputs.public_ip }}," \
-        config/ansible/site.yaml \
-        -u azureuser \
-        --private-key ~/.ssh/id_ed25519 \
-        -e "ansible_ssh_common_args='-o StrictHostKeyChecking=no'"
+      - name: run playbook
+        run: |
+          ansible-playbook -i "${{ needs.terraform.outputs.public_ip }}," \
+          config/ansible/site.yaml \
+          -u azureuser \
+          --private-key ~/.ssh/id_ed25519 \
+          -e "ansible_ssh_common_args='-o StrictHostKeyChecking=no'"
